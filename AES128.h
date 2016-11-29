@@ -3,6 +3,7 @@
 
 #define BLOCK_SIZE 16
 #define WORD_SIZE 4
+#define INSTRINSICS_ENABLED 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +15,6 @@
 #include "shiftRows.h"
 #include "mixColumns.h"
 #include "keyExpansion.h"
-
 
 int main(int argc, char* argv[]);
 void encryptFile(char* inputFileName, char* outputFileName, char* key);
