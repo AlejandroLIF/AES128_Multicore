@@ -27,7 +27,6 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
     long fileSize;
     int padding;
     unsigned char *data;
-    unsigned char bytesRead;
     int i;
 
     //Multithread variables
@@ -82,7 +81,7 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
                                   .nextByte = &nextByte,
                                   .mutex = &mutex
                                 };
-    printf("Encrypting with %d threads\r\n", NUM_CORES);
+    printf("Encrypting with %d threads...\r\n", NUM_CORES);
     //Create threads
     for(i = 0; i < NUM_CORES; i++){
         pthread_create(&threads[i], NULL, &encryptFile_thread, &threadInfo);
@@ -93,6 +92,9 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
     }
 
     fwrite(&data[0], fileSize + padding + BLOCK_SIZE, 1, ofp);
+
+    free(threads);
+    free(data);
 
     fclose(ifp);
     fclose(ofp);
@@ -147,10 +149,18 @@ void encryptBlock(unsigned char* const block, const unsigned char* const expande
 
 void decryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[KEY_ARRAY_SIZE];
-    unsigned char data[BLOCK_SIZE];
-    unsigned char bytesRead;
-    int i;
+    long fileSize;
     unsigned char paddingBytes;
+    unsigned char *data;
+    int i;
+
+    //Multithread variables
+    const int NUM_CORES = sysconf(_SC_NPROCESSORS_ONLN);
+    pthread_t *threads = (pthread_t*)malloc(NUM_CORES*sizeof(pthread_t));
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    threadInfo_t threadInfo;
+    long nextByte;
+
     parseKey(key, keyArray);
     expand(&keyArray[0]);
 
@@ -167,28 +177,78 @@ void decryptFile(char* inputFileName, char* outputFileName, char* key){
         exit(-1);//Cannot continue
     }
 
-    do{
-        memset(&data[0], 0, BLOCK_SIZE); //Make sure "data" holds all zeroes.
-        bytesRead = fread(&data[0], 1, BLOCK_SIZE, ifp);
-        decryptBlock(&data[0], &keyArray[0]);
+    //Find size of binary file
+    //FIXME: This code supports files up to 2GB in size.
+    //FIXME: SEEK_END need not necessarily be supported.
+    fseek(ifp, 0, SEEK_END);
+    fileSize = ftell(ifp);
+    rewind(ifp);
 
-        paddingBytes = data[BLOCK_SIZE - 1];
-        //TODO: THE CASE WHEN ONLY 1 PADDING BYTE IS ADDED IS NOT BEING HANDLED!
-        if(paddingBytes < BLOCK_SIZE && paddingBytes > 1){ //This may be the last block.
-            for(i = 0; i < paddingBytes; i++){
-                if(data[BLOCK_SIZE - 1 - i] != paddingBytes){
-                    break;
-                }
-            }
-            if(i == paddingBytes){
-                bytesRead = BLOCK_SIZE - paddingBytes;
-            }
-        }
-        fwrite(&data[0], 1, bytesRead, ofp);
-    }while(bytesRead == BLOCK_SIZE); //Read until EOF
+    //Allocate array to hold binary file and padding information.
+    data = (unsigned char*)malloc((fileSize) * sizeof(unsigned char));
+
+    //Read file into array
+    fread(&data[0], fileSize, 1, ifp);
+
+    nextByte = 0;
+    threadInfo = (threadInfo_t) { .data = data,
+                                  .keyArray = &keyArray[0],
+                                  .length = fileSize,
+                                  .nextByte = &nextByte,
+                                  .mutex = &mutex
+                                };
+
+    printf("Decrypting with %d threads...\r\n", NUM_CORES);
+
+    //Create threads
+    for(i = 0; i < NUM_CORES; i++){
+        pthread_create(&threads[i], NULL, &decryptFile_thread, &threadInfo);
+    }
+    //Join threads
+    for(i = 0; i < NUM_CORES; i++){
+        pthread_join(threads[i], NULL);
+    }
+
+    //Identify number of padding bytes.
+    //  The total length of data is fileSize - BLOCK_SIZE - paddingBytes.
+    paddingBytes = data[fileSize - 1];
+
+    fwrite(&data[0], fileSize - BLOCK_SIZE - paddingBytes, 1, ofp);
+
+    free(threads);
+    free(data);
 
     fclose(ifp);
     fclose(ofp);
+}
+
+void* decryptFile_thread(void* p){
+  threadInfo_t threadInfo = *((threadInfo_t*)p);
+  unsigned char* data = threadInfo.data;
+  const long length = threadInfo.length;
+  long *nextByte = threadInfo.nextByte;
+  long localNextByte;
+  pthread_mutex_t *mutex = threadInfo.mutex;
+  unsigned char localBlock[BLOCK_SIZE];
+  unsigned char localKey[KEY_ARRAY_SIZE];
+  memcpy(&localKey[0], threadInfo.keyArray, KEY_ARRAY_SIZE);
+
+  pthread_mutex_lock(mutex);
+  localNextByte = *nextByte;
+  *nextByte += BLOCK_SIZE;
+  pthread_mutex_unlock(mutex);
+
+  while(localNextByte < length){
+      memcpy(&localBlock[0], &data[localNextByte], BLOCK_SIZE);
+      decryptBlock(&localBlock[0], &localKey[0]);
+      memcpy(&data[localNextByte], &localBlock[0], BLOCK_SIZE);
+
+      pthread_mutex_lock(mutex);
+      localNextByte = *nextByte;
+      *nextByte += BLOCK_SIZE;
+      pthread_mutex_unlock(mutex);
+  }
+  return 0;
 }
 
 void decryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
