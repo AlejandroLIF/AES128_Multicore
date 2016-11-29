@@ -22,7 +22,7 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-void encryptFile(char* inputFileName, char* outputFileName, char* key){}
+void encryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[KEY_ARRAY_SIZE]; //keyArray should hold enough memory for the expanded key
     long fileSize;
     int padding;
@@ -70,18 +70,19 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){}
     data = (unsigned char*)malloc((fileSize + padding + BLOCK_SIZE) * sizeof(unsigned char));
     //Fill out the last two blocks of data. The last block contains number of
     //  padding bytes, whereas the previous one might be padded.
-    memset(data[fileSize + padding - BLOCK_SIZE], padding, 2*BLOCK_SIZE);
+    memset(&data[fileSize + padding - BLOCK_SIZE], padding, 2*BLOCK_SIZE);
 
     //Read file into array
     fread(&data[0], fileSize, 1, ifp);
 
     nextByte = 0;
-    threadInfo = {  .data = data,
-                    .keyArray = &keyArray[0],
-                    .length = fileSize + padding + BLOCK_SIZE,
-                    .nextByte = &nextByte,
-                    .mutex = &mutex
-                };
+    threadInfo = (threadInfo_t) { .data = data,
+                                  .keyArray = &keyArray[0],
+                                  .length = fileSize + padding + BLOCK_SIZE,
+                                  .nextByte = &nextByte,
+                                  .mutex = &mutex
+                                };
+    printf("Encrypting with %d threads\r\n", NUM_CORES);
     //Create threads
     for(i = 0; i < NUM_CORES; i++){
         pthread_create(&threads[i], NULL, &encryptFile_thread, &threadInfo);

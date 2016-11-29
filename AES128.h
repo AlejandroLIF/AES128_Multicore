@@ -20,7 +20,7 @@
 typedef struct{
     unsigned char* data;
     unsigned char* keyArray;
-    const long length;
+    long length;
     long *nextByte;
     pthread_mutex_t* mutex;
 } threadInfo_t;
