@@ -9,7 +9,8 @@
 #include "shiftRows.h"
 #include "mixColumns.h"
 #include "keyExpansion.h"
-
+#include <time.h>
+#define MILLION 1E6
 
 void encryptFile(char* fileName, char* key);
 void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey);
@@ -18,6 +19,8 @@ void decryptBlock(unsigned char* const block, const unsigned char* const expande
 void parseKey(char* key, unsigned char* const keyArray);
 
 int main(int argc, char *argv[]){
+    struct timespec ts;
+    double start, end;
     if(argc != 4){
         IO_ERR: printf("Usage: %s [-encrypt|-decrypt] [file] [32-char HEX Key | 16-char ASCII Key]\r\n", argv[0]);
         printf("Example: %s -encrypt myFile.txt 00112233445566778899AABBCCDDEEFF\r\n", argv[0]);
@@ -26,10 +29,20 @@ int main(int argc, char *argv[]){
     }
     else{
         if(strcmp(argv[1], "-encrypt") == 0){
-            encryptFile(argv[2], argv[3]);
+          clock_gettime(CLOCK_REALTIME, &ts);
+          start = (double)(ts.tv_sec * 1000 + ts.tv_nsec/MILLION);
+          encryptFile(argv[2], argv[3]);
+          clock_gettime(CLOCK_REALTIME, &ts);
+          end = (double)(ts.tv_sec * 1000 + ts.tv_nsec/MILLION);
+          printf("Encryption time: %f ms\n",end-start);
         }
         else if(strcmp(argv[1], "-decrypt") == 0){
-            decryptFile(argv[2], argv[3]);
+          clock_gettime(CLOCK_REALTIME, &ts);
+          start = (double)(ts.tv_sec * 1000 + ts.tv_nsec/MILLION);
+          decryptFile(argv[2], argv[3]);
+          clock_gettime(CLOCK_REALTIME, &ts);
+          end = (double)(ts.tv_sec * 1000 + ts.tv_nsec/MILLION);
+          printf("Decryption time: %f ms\n",end-start);
         }
         else{
             goto IO_ERR;
