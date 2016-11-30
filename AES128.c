@@ -1,78 +1,75 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "AES128.h"
 
-#include "addRoundKey.h"
-#include "subBytes.h"
-#include "shiftRows.h"
-#include "mixColumns.h"
-#include "keyExpansion.h"
-
-
-void encryptFile(char* fileName, char* key);
-void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey);
-void decryptFile(char* fileName, char* key);
-void decryptBlock(unsigned char* const block, const unsigned char* const expandedKey);
-void parseKey(char* key, unsigned char* const keyArray);
-
 int main(int argc, char *argv[]){
-    if(argc != 4){
-        IO_ERR: printf("Usage: %s [-encrypt|-decrypt] [file] [32-char HEX Key | 16-char ASCII Key]\r\n", argv[0]);
-        printf("Example: %s -encrypt myFile.txt 00112233445566778899AABBCCDDEEFF\r\n", argv[0]);
-        printf("Example: %s -decrypt encrypted.bin 12345TheKey12345\r\n", argv[0]);
+    clock_t begin, end;
+    begin = clock();
+    if(argc != 5){
+        IO_ERR: printf("Usage: %s [-encrypt|-decrypt] [input file] [output file] [32-char HEX Key | 16-char ASCII Key]\r\n", argv[0]);
+        printf("Example: %s -encrypt plaintext.txt encrypted.bin 00112233445566778899AABBCCDDEEFF\r\n", argv[0]);
+        printf("Example: %s -decrypt encrypted.bin plaintext.txt 12345TheKey12345\r\n", argv[0]);
         return -1;
     }
     else{
         if(strcmp(argv[1], "-encrypt") == 0){
-            encryptFile(argv[2], argv[3]);
+            encryptFile(argv[2], argv[3], argv[4]);
         }
         else if(strcmp(argv[1], "-decrypt") == 0){
-            decryptFile(argv[2], argv[3]);
+            decryptFile(argv[2], argv[3], argv[4]);
         }
         else{
             goto IO_ERR;
         }
     }
+    end = clock();
+    double time_spent = 1000*((double)(end-begin))/CLOCKS_PER_SEC;
+    printf("Total execution time: %8.3f milliseconds.\r\n", time_spent);
     return 0;
 }
 
-void encryptFile(char* fileName, char* key){
+void encryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[176]; //keyArray should hold enough memory for the expanded key
     unsigned char data[BLOCK_SIZE];
     unsigned char bytesRead;
     int i;
+    int padding;
+    unsigned char done = 0;
     parseKey(key, keyArray);
     expand(&keyArray[0]);
-    
-    FILE *ifp = fopen(fileName, "rb");
+
+    FILE *ifp = fopen(inputFileName, "rb");
     if(ifp == NULL){
         printf("ERROR: invalid input file\r\n");
         exit(-1);//Cannot continue
     }
-    
-    FILE *ofp = fopen("AES128_encrypted_output", "wb");
+
+    FILE *ofp = fopen(outputFileName, "wb");
     if(ifp == NULL){
-        printf("ERROR: unable to write output to AES128_encrypted_output\r\n");
+         printf("ERROR: unable to write output to \"%s\"\r\n", outputFileName);
         fclose(ifp);
         exit(-1);//Cannot continue
     }
-    
+
     do{
         memset(&data[0], 0, BLOCK_SIZE); //Make sure "data" holds all zeroes.
         bytesRead = fread(&data[0], 1, BLOCK_SIZE, ifp);
-        
+        printf("Read %d bytes\r\n", bytesRead);
         if(bytesRead < BLOCK_SIZE){ //The last block may require padding
-            for(i = 0; i < BLOCK_SIZE - bytesRead; i++){
-                data[BLOCK_SIZE - 1 - i] = BLOCK_SIZE - bytesRead;
-            }
+          padding = 0;
+          if(bytesRead != 0){
+            padding = BLOCK_SIZE - bytesRead;
+          }
+          done = 1;
         }
-        
+
         encryptBlock(&data[0], &keyArray[0]);
         fwrite(&data[0], 1, BLOCK_SIZE, ofp);
-    }while(bytesRead == BLOCK_SIZE); //Read until EOF
-    
+    }while(!done); //Read until EOF
+
+    //A block with padding information is appended.
+    memset(&data[0], padding, BLOCK_SIZE);
+    encryptBlock(&data[0], &keyArray[0]);
+    fwrite(&data[0], 1, BLOCK_SIZE, ofp);
+
     fclose(ifp);
     fclose(ofp);
 }
@@ -80,7 +77,7 @@ void encryptFile(char* fileName, char* key){
 void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
     int keyIndex = 0;
     int i;
-    
+
     addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]); //Add round key and increase the key index.
 
     for(i = 0; i<9; i++){
@@ -95,48 +92,49 @@ void encryptBlock(unsigned char* const block, const unsigned char* const expande
     addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]);
 }
 
-void decryptFile(char* fileName, char* key){
+void decryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[176];
-    unsigned char data[BLOCK_SIZE];
+    unsigned char data[3][BLOCK_SIZE];
     unsigned char bytesRead;
     int i;
-    unsigned char paddingBytes;
+    unsigned char done = 0;
     parseKey(key, keyArray);
     expand(&keyArray[0]);
-    
-    FILE *ifp = fopen(fileName, "rb");
+
+    FILE *ifp = fopen(inputFileName, "rb");
     if(ifp == NULL){
         printf("ERROR: invalid input file\r\n");
         exit(-1);//Cannot continue
     }
-    
-    FILE *ofp = fopen("AES128_decrypted_output", "wb");
+
+    FILE *ofp = fopen(outputFileName, "wb");
     if(ifp == NULL){
-        printf("ERROR: unable to write output to AES128_decrypted_output\r\n");
+         printf("ERROR: unable to write output to \"%s\"\r\n", outputFileName);
         fclose(ifp);
         exit(-1);//Cannot continue
     }
-    
+
+    //Read the first two blocks of data and store them in memory
+    bytesRead = fread(&data[1][0], 1, 2*BLOCK_SIZE, ifp);
+    decryptBlock(&data[1][0], &keyArray[0]);
+    decryptBlock(&data[2][0], &keyArray[0]);
+
     do{
-        memset(&data[0], 0, BLOCK_SIZE); //Make sure "data" holds all zeroes.
-        bytesRead = fread(&data[0], 1, BLOCK_SIZE, ifp);
-        decryptBlock(&data[0], &keyArray[0]);
-        
-        paddingBytes = data[BLOCK_SIZE - 1];
-        //TODO: THE CASE WHEN ONLY 1 PADDING BYTE IS ADDED IS NOT BEING HANDLED!
-        if(paddingBytes < BLOCK_SIZE && paddingBytes > 1){ //This may be the last block.
-            for(i = 0; i < paddingBytes; i++){
-                if(data[BLOCK_SIZE - 1 - i] != paddingBytes){
-                    break;
-                }
-            }
-            if(i == paddingBytes){
-                bytesRead = BLOCK_SIZE - paddingBytes;
-            }
+        //Shift out the two previously read blocks.
+        memcpy(&data[0][0], &data[1][0], 2*BLOCK_SIZE);
+
+        bytesRead = fread(&data[2][0], 1, BLOCK_SIZE, ifp);
+        decryptBlock(&data[2][0], &keyArray[0]);
+
+        //If EOF has been reached
+        if(bytesRead == 0){
+            //The previously read block contains the number of padding bytes.
+            bytesRead = BLOCK_SIZE - data[1][0];
+            done = 1;
         }
-        fwrite(&data[0], 1, bytesRead, ofp);
-    }while(bytesRead == BLOCK_SIZE); //Read until EOF
-    
+        fwrite(&data[0][0], 1, bytesRead, ofp);
+    }while(!done); //Read until EOF2
+
     fclose(ifp);
     fclose(ofp);
 }
@@ -144,16 +142,16 @@ void decryptFile(char* fileName, char* key){
 void decryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
     int keyIndex = 10;
     int i;
-    
+
     addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]); //Add round key and reduce the key index
-    
+
     for(i = 0; i < 9; i++){
         invShiftRows(block);
         invSubBytes(block, BLOCK_SIZE);
         addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]);
         invMixColumns(block);
     }
-    
+
     invShiftRows(block);
     invSubBytes(block, BLOCK_SIZE);
     addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]);
@@ -161,7 +159,7 @@ void decryptBlock(unsigned char* const block, const unsigned char* const expande
 
 /*
     Parse the key from its string representation to a byte array.
-*/    
+*/
 void parseKey(char* key, unsigned char* const keyArray){
     char* temp = key;
     int i = 0;
@@ -171,7 +169,7 @@ void parseKey(char* key, unsigned char* const keyArray){
         temp++;
         i++;
     }
-    
+
     if(i == 32){ //32-char Hex KEY
         // Go through each byte
         for(i = 15; i >= 0; i--){
