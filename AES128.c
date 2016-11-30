@@ -52,17 +52,17 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
     do{
         memset(&data[0], 0, BLOCK_SIZE); //Make sure "data" holds all zeroes.
         bytesRead = fread(&data[0], 1, BLOCK_SIZE, ifp);
-        printf("Read %d bytes\r\n", bytesRead);
         if(bytesRead < BLOCK_SIZE){ //The last block may require padding
           padding = 0;
           if(bytesRead != 0){
             padding = BLOCK_SIZE - bytesRead;
+            bytesRead = BLOCK_SIZE;
           }
           done = 1;
         }
 
         encryptBlock(&data[0], &keyArray[0]);
-        fwrite(&data[0], 1, BLOCK_SIZE, ofp);
+        fwrite(&data[0], 1, bytesRead, ofp);
     }while(!done); //Read until EOF
 
     //A block with padding information is appended.
