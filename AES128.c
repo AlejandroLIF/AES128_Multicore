@@ -30,7 +30,6 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[176]; //keyArray should hold enough memory for the expanded key
     unsigned char data[BLOCK_SIZE];
     unsigned char bytesRead;
-    int i;
     int padding;
     unsigned char done = 0;
     parseKey(key, keyArray);
@@ -75,28 +74,31 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
 }
 
 void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
-    int keyIndex = 0;
+
+    void encryptBlock(unsigned char* const block, const unsigned char* const key){
+    unsigned char* a = block;
+    const unsigned char* b = key;
     int i;
 
-    addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]); //Add round key and increase the key index.
+    __m128i aVec;
+    __m128i bVec;
+
+
+    aVec = _mm_load_si128((__m128i*)a);
+    bVec = _mm_load_si128((__m128i*)b);
 
     for(i = 0; i<9; i++){
-        subBytes(block, BLOCK_SIZE);
-        shiftRows(block);
-        mixColumns(block);
-        addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]);
+        _mm_aesenc_si128( aVec, bVec );
     }
+    _mm_aesenclast_si128(aVec, bVec);
 
-    subBytes(block, BLOCK_SIZE);
-    shiftRows(block);
-    addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]);
+}
 }
 
 void decryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[176];
     unsigned char data[3][BLOCK_SIZE];
     unsigned char bytesRead;
-    int i;
     unsigned char done = 0;
     parseKey(key, keyArray);
     expand(&keyArray[0]);
