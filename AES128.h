@@ -10,6 +10,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "addRoundKey.h"
 #include "subBytes.h"
