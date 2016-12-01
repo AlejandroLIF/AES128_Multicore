@@ -10,7 +10,6 @@ int main(int argc, char *argv[]){
         return -1;
     }
     else{
-        printf("%s\r\n%s\r\n%s\r\n", argv[2], argv[3], argv[4]);
         if(strcmp(argv[1], "-encrypt") == 0){
             encryptFile(argv[2], argv[3], argv[4]);
         }
