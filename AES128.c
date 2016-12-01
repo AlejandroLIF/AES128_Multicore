@@ -134,21 +134,23 @@ void* encryptFile_thread(void* p){
 }
 
 void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
-    int keyIndex = 0;
+    unsigned char* a = block;
+    const unsigned char* b = key;
     int i;
 
-    addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]); //Add round key and increase the key index.
+    __m128i aVec;
+    __m128i bVec;
+    __m128i res;
+
+
+    aVec = _mm_load_si128((__m128i*)a);
+    bVec = _mm_load_si128((__m128i*)b);
 
     for(i = 0; i<9; i++){
-        subBytes(block, BLOCK_SIZE);
-        shiftRows(block);
-        mixColumns(block);
-        addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]);
+        res = _mm_aesenc_si128( aVec, bVec );
     }
+    res = _mm_aesenclast_si128(aVec, bVec);
 
-    subBytes(block, BLOCK_SIZE);
-    shiftRows(block);
-    addRoundKey(block, &expandedKey[(keyIndex++) * BLOCK_SIZE]);
 }
 
 void decryptFile(char* inputFileName, char* outputFileName, char* key){
@@ -255,22 +257,23 @@ void* decryptFile_thread(void* p){
   return 0;
 }
 
-void decryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
-    int keyIndex = 10;
+void decryptBlock(unsigned char* const block, const unsigned char* const key){
+    unsigned char* a = block;
+    const unsigned char* b = key;
     int i;
 
-    addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]); //Add round key and reduce the key index
+    __m128i aVec;
+    __m128i bVec;
 
-    for(i = 0; i < 9; i++){
-        invShiftRows(block);
-        invSubBytes(block, BLOCK_SIZE);
-        addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]);
-        invMixColumns(block);
+
+    aVec = _mm_load_si128((__m128i*)a);
+    bVec = _mm_load_si128((__m128i*)b);
+
+    for(i = 0; i<9; i++){
+        _mm_aesdec_si128( aVec, bVec );
+
     }
-
-    invShiftRows(block);
-    invSubBytes(block, BLOCK_SIZE);
-    addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]);
+    _mm_aesdeclast_si128(aVec, bVec);
 }
 
 /*
