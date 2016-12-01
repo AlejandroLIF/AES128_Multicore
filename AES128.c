@@ -135,7 +135,7 @@ void* encryptFile_thread(void* p){
 
 void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
     unsigned char* a = block;
-    const unsigned char* b = key;
+    const unsigned char* b = expandedKey;
     int i;
 
     __m128i aVec;

@@ -11,8 +11,8 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <time.h>
-#include <xmmintrin.h>
 
+#include "wmmintrin.h"
 #include "addRoundKey.h"
 #include "subBytes.h"
 #include "shiftRows.h"
