@@ -1,4 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "AES128.h"
+
+#include "addRoundKey.h"
+#include "subBytes.h"
+#include "shiftRows.h"
+#include "mixColumns.h"
+#include "keyExpansion.h"
+#include <time.h>
+#include "wmmintrin.h"
 
 int main(int argc, char *argv[]){
     clock_t begin, end;
@@ -30,6 +42,7 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[176]; //keyArray should hold enough memory for the expanded key
     unsigned char data[BLOCK_SIZE];
     unsigned char bytesRead;
+    int i;
     int padding;
     unsigned char done = 0;
     parseKey(key, keyArray);
@@ -73,32 +86,32 @@ void encryptFile(char* inputFileName, char* outputFileName, char* key){
     fclose(ofp);
 }
 
-void encryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
-
-    void encryptBlock(unsigned char* const block, const unsigned char* const key){
+void encryptBlock(unsigned char* const block, const unsigned char* const key){
     unsigned char* a = block;
     const unsigned char* b = key;
     int i;
 
     __m128i aVec;
     __m128i bVec;
-
-
+    __m128i res;
+    
+    
     aVec = _mm_load_si128((__m128i*)a);
     bVec = _mm_load_si128((__m128i*)b);
-
+    
     for(i = 0; i<9; i++){
-        _mm_aesenc_si128( aVec, bVec );
+        res = _mm_aesenc_si128( aVec, bVec );
     }
-    _mm_aesenclast_si128(aVec, bVec);
+    res = _mm_aesenclast_si128(aVec, bVec);
+    
+}
 
-}
-}
 
 void decryptFile(char* inputFileName, char* outputFileName, char* key){
     unsigned char keyArray[176];
     unsigned char data[3][BLOCK_SIZE];
     unsigned char bytesRead;
+    int i;
     unsigned char done = 0;
     parseKey(key, keyArray);
     expand(&keyArray[0]);
@@ -141,22 +154,23 @@ void decryptFile(char* inputFileName, char* outputFileName, char* key){
     fclose(ofp);
 }
 
-void decryptBlock(unsigned char* const block, const unsigned char* const expandedKey){
-    int keyIndex = 10;
+void decryptBlock(unsigned char* const block, const unsigned char* const key){
+    unsigned char* a = block;
+    const unsigned char* b = key;
     int i;
 
-    addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]); //Add round key and reduce the key index
+    __m128i aVec;
+    __m128i bVec;
+    
+    
+    aVec = _mm_load_si128((__m128i*)a);
+    bVec = _mm_load_si128((__m128i*)b);
+    
+    for(i = 0; i<9; i++){
+        _mm_aesdec_si128( aVec, bVec );
 
-    for(i = 0; i < 9; i++){
-        invShiftRows(block);
-        invSubBytes(block, BLOCK_SIZE);
-        addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]);
-        invMixColumns(block);
     }
-
-    invShiftRows(block);
-    invSubBytes(block, BLOCK_SIZE);
-    addRoundKey(block, &expandedKey[(keyIndex--) * BLOCK_SIZE]);
+    _mm_aesdeclast_si128(aVec, bVec);
 }
 
 /*
