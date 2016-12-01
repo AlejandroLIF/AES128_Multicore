@@ -4,6 +4,18 @@
 #define BLOCK_SIZE 16
 #define KEY_ARRAY_SIZE 176
 #define WORD_SIZE 4
+#define INSTRINSICS_ENABLED 1
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "addRoundKey.h"
+#include "subBytes.h"
+#include "shiftRows.h"
+#include "mixColumns.h"
+#include "keyExpansion.h"
 
 #include <stdio.h>
 #include <stdlib.h>

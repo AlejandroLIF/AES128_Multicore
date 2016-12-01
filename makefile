@@ -1,5 +1,5 @@
 CC=gcc
-ARGS=-O -pthread
+ARGS=-O -pthread -msse2 -ggdb
 
 all: AES128.o addRoundKey.o keyExpansion.o mixColumns.o rotateWord.o shiftRows.o subBytes.o
 	$(CC) $(ARGS) -o AES128.run AES128.o addRoundKey.o keyExpansion.o mixColumns.o rotateWord.o shiftRows.o subBytes.o

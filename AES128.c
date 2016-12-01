@@ -1,6 +1,8 @@
 #include "AES128.h"
 
 int main(int argc, char *argv[]){
+    clock_t begin, end;
+    begin = clock();
     if(argc != 5){
         IO_ERR: printf("Usage: %s [-encrypt|-decrypt] [input file] [output file] [32-char HEX Key | 16-char ASCII Key]\r\n", argv[0]);
         printf("Example: %s -encrypt plaintext.txt encrypted.bin 00112233445566778899AABBCCDDEEFF\r\n", argv[0]);
@@ -19,6 +21,9 @@ int main(int argc, char *argv[]){
             goto IO_ERR;
         }
     }
+    end = clock();
+    double time_spent = 1000*((double)(end-begin))/CLOCKS_PER_SEC;
+    printf("Total execution time: %8.3f milliseconds.\r\n", time_spent);
     return 0;
 }
 
