@@ -33,3 +33,5 @@ AES128_test.o : AES128_test.c
 
 clean:
 	rm *.o
+	rm *.run
+	rm *.gch
